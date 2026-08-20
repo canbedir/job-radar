@@ -1,0 +1,55 @@
+name: job radar
+
+on:
+  schedule:
+    # Every 15 minutes. GitHub treats scheduled runs as best-effort and often
+    # delays them by 20-40 minutes under load. That jitter is irrelevant here:
+    # LinkedIn itself indexes new postings 18-48 hours late, and the 24h
+    # lookback window means a delayed or skipped run loses nothing.
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+# The ledger is committed back to the repo, so two overlapping runs would race
+# on the same file. Never cancel the run in progress -- it may already have sent
+# notifications whose state must still be written.
+concurrency:
+  group: job-radar
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Scan for new jobs
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -m src.main
+
+      - name: Persist ledger
+        run: |
+          if [ -z "$(git status --porcelain data/)" ]; then
+            echo "no new jobs, nothing to commit"
+            exit 0
+          fi
+          git config user.name "canbedir"
+          git config user.email "canbedir100@gmail.com"
+          git add data/
+          git commit -m "Update job ledger"
+          # Another run may have pushed while this one was scanning.
+          git pull --rebase --autostash origin "${GITHUB_REF_NAME}"
+          git push

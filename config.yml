@@ -8,6 +8,11 @@ run:
   # Random delay between requests, in seconds.
   delay_range: [1.0, 3.0]
   timeout: 15
+  # Stay silent for this long after the ledger is created. LinkedIn returns a
+  # different slice of its backlog on every call, so the first day of runs keeps
+  # turning up older postings that are new only to the ledger. Once the window
+  # closes, anything new really is new.
+  warmup_hours: 24
 
 sources:
   linkedin:

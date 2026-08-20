@@ -178,7 +178,8 @@ def main(argv: list[str] | None = None) -> int:
     jobs, warnings = collect(cfg, fetcher)
 
     store = Store(Path(args.data_dir))
-    bootstrap = store.is_empty
+    first_run = store.is_empty
+    warmup_left = store.warmup_remaining(int(run_cfg.get("warmup_hours", 24)))
     fresh = store.filter_new(jobs)
 
     scorer = Scorer(cfg["scoring"])
@@ -202,21 +203,27 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     tg_cfg = cfg.get("telegram", {})
-    if bootstrap:
-        # First run sees a whole 24h backlog at once. Sending all of it would
-        # bury the user under notifications, so the ledger is seeded silently
-        # and only real-time arrivals are announced from the next run onwards.
-        log(f"first run: seeding ledger with {len(fresh)} jobs, no notifications sent")
-        if tg_cfg.get("enabled") and telegram.configured:
+    telegram_ready = bool(tg_cfg.get("enabled")) and telegram.configured
+
+    if warmup_left > 0:
+        # Seed silently. LinkedIn hands back a different slice of its backlog on
+        # every call, so the first day of runs keeps surfacing older postings
+        # that are only new to the ledger. Notifying through that would bury the
+        # user before a single genuinely new job arrives.
+        log(
+            f"warm-up: seeding {len(fresh)} jobs without notifying "
+            f"({warmup_left:.1f}h remaining)"
+        )
+        if first_run and telegram_ready:
             telegram.send_text(
-                f"✅ <b>job radar armed</b>\nSeeded with {len(fresh)} existing postings. "
-                "You will be notified about new ones from now on."
+                f"✅ <b>job radar armed</b>\nLearning the existing backlog for "
+                f"{warmup_left:.0f}h. Alerts start once that settles."
             )
         store.commit(fresh)
         log(f"state written to {store.seen_path}")
         return 0
 
-    if tg_cfg.get("enabled") and telegram.configured:
+    if telegram_ready:
         limit = int(tg_cfg.get("max_notifications_per_run", 15))
         overflow = len(to_notify) - limit
         for job in to_notify[:limit]:

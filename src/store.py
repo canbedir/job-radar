@@ -29,6 +29,7 @@ class Store:
         self.seen_path = data_dir / "seen.json"
         self.archive_path = data_dir / "jobs.jsonl"
         self.seen: dict[str, str] = {}
+        self.created_at: str = ""
         self._load()
 
     def _load(self) -> None:
@@ -38,10 +39,30 @@ class Store:
             with self.seen_path.open(encoding="utf-8") as fh:
                 data = json.load(fh)
             self.seen = data.get("seen", {})
+            self.created_at = data.get("created_at", "")
         except (json.JSONDecodeError, OSError):
             # A corrupt ledger must not stop the run. Worst case the next run
             # re-notifies recent jobs once, which is far better than crashing.
             self.seen = {}
+            self.created_at = ""
+
+    def warmup_remaining(self, hours: int) -> float:
+        """Hours left before notifications should start.
+
+        LinkedIn returns a different slice of results on each call, so a single
+        seeding pass does not capture the existing backlog -- the first day of
+        runs keeps turning up dozens of older postings that are new only to the
+        ledger. Staying silent for a full window lets the backlog settle, after
+        which anything new really is new.
+        """
+        if not self.created_at:
+            return float(hours)
+        try:
+            started = datetime.fromisoformat(self.created_at)
+        except ValueError:
+            return 0.0
+        elapsed = (datetime.now() - started).total_seconds() / 3600
+        return max(hours - elapsed, 0.0)
 
     @property
     def is_empty(self) -> bool:
@@ -92,7 +113,12 @@ class Store:
         # Write via a temporary file so an interrupted run cannot leave behind a
         # truncated ledger that would re-notify everything.
         tmp = self.seen_path.with_suffix(".json.tmp")
-        payload = {"updated_at": datetime.now().isoformat(timespec="seconds"), "seen": self.seen}
+        now = datetime.now().isoformat(timespec="seconds")
+        payload = {
+            "created_at": self.created_at or now,
+            "updated_at": now,
+            "seen": self.seen,
+        }
         with tmp.open("w", encoding="utf-8") as fh:
             json.dump(payload, fh, ensure_ascii=False, indent=0, sort_keys=True)
         os.replace(tmp, self.seen_path)
