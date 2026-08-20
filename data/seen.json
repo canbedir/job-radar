@@ -27,6 +27,8 @@
 "backend engineer ingestion europe uk timezone|posthog": "2026-08-20T15:53:38",
 "bilgi teknolojileri stajyeri|sca social": "2026-08-20T17:11:19",
 "brand designer product launches|figma": "2026-08-20T15:53:38",
+"business development representative bengaluru|cloudflare": "2026-08-20T23:52:08",
+"business development representative|cloudflare": "2026-08-20T23:52:08",
 "data engineer|beymen group": "2026-08-20T15:53:38",
 "data engineer|gini talent": "2026-08-20T19:20:55",
 "demand generation lead growth|linear": "2026-08-20T15:53:38",
@@ -133,6 +135,8 @@
 "greenhouse:cloudflare:8136547": "2026-08-20T15:53:38",
 "greenhouse:cloudflare:8138788": "2026-08-20T15:53:38",
 "greenhouse:cloudflare:8142219": "2026-08-20T15:53:38",
+"greenhouse:cloudflare:8143309": "2026-08-20T23:52:08",
+"greenhouse:cloudflare:8143314": "2026-08-20T23:52:08",
 "greenhouse:doximity:8126522": "2026-08-20T15:53:38",
 "greenhouse:figma:5787576004": "2026-08-20T15:53:38",
 "greenhouse:figma:6131079004": "2026-08-20T15:53:38",
@@ -568,5 +572,5 @@
 "yazilim pazarlama yonetici adayi|kefilin yazilim a s": "2026-08-20T15:53:38",
 "yazilim uzmani|coskunoz holding": "2026-08-20T15:53:38"
 },
-"updated_at": "2026-08-20T23:27:58"
+"updated_at": "2026-08-20T23:52:08"
 }
