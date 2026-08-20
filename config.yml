@@ -4,7 +4,7 @@
 run:
   # Hard ceiling on HTTP requests per run. LinkedIn throttles a single IP after
   # roughly ten rapid pages, so the budget stays well under that.
-  max_requests: 60
+  max_requests: 80
   # Random delay between requests, in seconds.
   delay_range: [1.0, 3.0]
   timeout: 15
@@ -36,33 +36,71 @@ sources:
       - { label: "GL/fullstack",  keywords: "fullstack developer remote", geo_id: 92000000 }
       - { label: "GL/react",      keywords: "react developer remote",     geo_id: 92000000 }
 
+  # Public ATS job boards. These are documented, unauthenticated JSON endpoints
+  # that companies use to embed openings on their own sites -- not scraping.
+  # They publish a role as soon as it goes live, typically one to three days
+  # before LinkedIn's crawler indexes it, which is the whole reason they matter.
+  #
+  # Every slug below was verified to return live postings. To add a company,
+  # find its board URL: jobs.lever.co/<slug>, boards.greenhouse.io/<slug>,
+  # or jobs.ashbyhq.com/<slug>.
+  ats:
+    enabled: true
+    # These boards return their full catalogue, including years-old postings.
+    max_age_days: 7
+
+    companies:
+      # --- Turkey ---
+      - { board: lever,      slug: dreamgames }
+      - { board: lever,      slug: picus }
+
+      # --- Global, remote-friendly ---
+      - { board: greenhouse, slug: vercel }
+      - { board: greenhouse, slug: gitlab }
+      - { board: greenhouse, slug: cloudflare }
+      - { board: greenhouse, slug: figma }
+      - { board: greenhouse, slug: doximity }
+      - { board: ashby,      slug: linear }
+      - { board: ashby,      slug: supabase }
+      - { board: ashby,      slug: posthog }
+
 scoring:
   # A job is notified when its score reaches this threshold. Anything lower is
   # still archived to data/jobs.jsonl, it just does not buzz the phone.
   notify_threshold: 4
 
-  # Matched against title + location + description (ATS sources carry a description).
-  positive:
-    react: 3
-    typescript: 3
-    "next.js": 3
-    nextjs: 3
+  # Matched against title + location only. Descriptions are deliberately excluded:
+  # ATS sources carry one and LinkedIn does not, so including them would score the
+  # same job differently depending on where it arrived from.
+
+  # Role terms are the primary relevance signal -- what the job actually is.
+  # At least one must match before any bonus or freshness point is awarded.
+  role:
     frontend: 3
     "front end": 3
     fullstack: 3
     "full stack": 3
+    react: 3
+    "react native": 2
+    "next.js": 3
+    nextjs: 3
     javascript: 2
     node: 2
-    "react native": 2
-    tailwind: 1
     vue: 1
     angular: 1
+    "ai engineer": 3
+    llm: 3
+    "generative ai": 3
+
+  # Bonus terms only refine an already-relevant job. "remote" describes how you
+  # work, not what the job is; on its own it must never carry a posting over the
+  # threshold, or every "Senior Engagement Manager, Remote" would be notified.
+  bonus:
     remote: 4
     uzaktan: 4
     hybrid: 1
-    llm: 3
-    "generative ai": 3
-    "ai engineer": 3
+    typescript: 3
+    tailwind: 1
     openai: 2
 
   negative:

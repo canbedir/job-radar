@@ -41,7 +41,12 @@ def _age_in_days(posted_at: str, today: date | None = None) -> int | None:
 
 class Scorer:
     def __init__(self, cfg: dict) -> None:
-        self.positive = _compile(cfg.get("positive", {}))
+        # Role terms are the actual relevance signal. Bonus terms only refine an
+        # already-relevant job: "remote" describes how you work, not what the job
+        # is, so on its own it must never carry a posting over the threshold --
+        # otherwise every "Senior Engagement Manager, Remote" gets notified.
+        self.role = _compile(cfg.get("role", {}))
+        self.bonus = _compile(cfg.get("bonus", {}))
         self.negative = _compile(cfg.get("negative", {}))
         # YAML parses the freshness keys as ints already; normalize defensively.
         self.freshness = {int(k): int(v) for k, v in (cfg.get("freshness") or {}).items()}
@@ -53,7 +58,12 @@ class Scorer:
         self.veto = _compile({term: 0 for term in (cfg.get("veto") or [])})
 
     def score(self, job: Job, today: date | None = None) -> tuple[int, list[str]]:
-        haystack = normalize(f"{job.title} {job.location} {job.description}")
+        # Deliberately title + location only, never the description. ATS sources
+        # carry a full description while LinkedIn carries none, so including it
+        # would score the same job differently depending on where it arrived
+        # from, and a passing mention of "php" in an 8k-character body would
+        # trip the veto on an otherwise perfect match.
+        haystack = normalize(f"{job.title} {job.location}")
         total = 0
         matched: list[str] = []
         hits = 0
@@ -64,7 +74,7 @@ class Scorer:
                 # keeps the job out of notifications no matter how high it is.
                 matched.append(f"VETO:{term}")
 
-        for term, pattern, points in self.positive:
+        for term, pattern, points in self.role:
             if pattern.search(haystack):
                 total += points
                 hits += 1
@@ -75,14 +85,21 @@ class Scorer:
                 total += points
                 matched.append(f"{term}{points:+d}")
 
-        # Freshness is a tie-breaker among relevant jobs, not evidence of
-        # relevance on its own. Without this guard a brand-new but unrelated
-        # posting would drift up towards the notification threshold.
-        age = _age_in_days(job.posted_at, today)
-        if hits and age is not None and age in self.freshness:
-            bonus = self.freshness[age]
-            total += bonus
-            matched.append(f"fresh({age}d){bonus:+d}")
+        # Bonuses and freshness are tie-breakers among relevant jobs, never
+        # evidence of relevance themselves. Gating them on a role match stops an
+        # unrelated posting from drifting over the threshold on recency or on a
+        # "Remote" in its location line.
+        if hits:
+            for term, pattern, points in self.bonus:
+                if pattern.search(haystack):
+                    total += points
+                    matched.append(f"{term}{points:+d}")
+
+            age = _age_in_days(job.posted_at, today)
+            if age is not None and age in self.freshness:
+                points = self.freshness[age]
+                total += points
+                matched.append(f"fresh({age}d){points:+d}")
 
         return total, matched
 

@@ -12,7 +12,7 @@ from .fetcher import BudgetExhausted, Fetcher, RateLimited
 from .models import Job
 from .notify import Telegram
 from .score import Scorer
-from .sources import linkedin
+from .sources import ats, linkedin
 from .store import Store
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -58,6 +58,40 @@ def collect_linkedin(cfg: dict, fetcher: Fetcher) -> tuple[list[Job], list[str]]
     return jobs, warnings
 
 
+def collect_ats(cfg: dict, fetcher: Fetcher) -> tuple[list[Job], list[str]]:
+    """Pull every configured ATS board.
+
+    These boards are independent of LinkedIn, so a LinkedIn block must not stop
+    them and one unreachable board must not stop the others.
+    """
+    source_cfg = cfg["sources"]["ats"]
+    max_age = int(source_cfg.get("max_age_days", 7))
+    jobs: list[Job] = []
+    warnings: list[str] = []
+
+    for entry in source_cfg["companies"]:
+        board, slug = entry["board"], entry["slug"]
+        adapter = ats.ADAPTERS.get(board)
+        if adapter is None:
+            warnings.append(f"unknown board type: {board}")
+            continue
+
+        try:
+            found = adapter(fetcher, slug)
+        except (RateLimited, BudgetExhausted) as exc:
+            warnings.append(f"ats stopped at {board}/{slug}: {exc}")
+            break
+        except Exception as exc:  # noqa: BLE001 - one bad board must not kill the run
+            warnings.append(f"{board}/{slug} failed: {exc}")
+            continue
+
+        recent = [job for job in found if ats.within_age(job, max_age)]
+        log(f"  {board}/{slug:<18} {len(recent):>3} recent of {len(found)}")
+        jobs.extend(recent)
+
+    return jobs, warnings
+
+
 def collect(cfg: dict, fetcher: Fetcher) -> tuple[list[Job], list[str]]:
     jobs: list[Job] = []
     warnings: list[str] = []
@@ -65,6 +99,12 @@ def collect(cfg: dict, fetcher: Fetcher) -> tuple[list[Job], list[str]]:
     if cfg["sources"].get("linkedin", {}).get("enabled"):
         log("collecting from linkedin...")
         found, warns = collect_linkedin(cfg, fetcher)
+        jobs.extend(found)
+        warnings.extend(warns)
+
+    if cfg["sources"].get("ats", {}).get("enabled"):
+        log("collecting from ats boards...")
+        found, warns = collect_ats(cfg, fetcher)
         jobs.extend(found)
         warnings.extend(warns)
 
