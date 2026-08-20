@@ -1,0 +1,103 @@
+# Job radar configuration.
+# Everything here is tunable without touching the code.
+
+run:
+  # Hard ceiling on HTTP requests per run. LinkedIn throttles a single IP after
+  # roughly ten rapid pages, so the budget stays well under that.
+  max_requests: 60
+  # Random delay between requests, in seconds.
+  delay_range: [1.0, 3.0]
+  timeout: 15
+
+sources:
+  linkedin:
+    enabled: true
+    # Pages per query. The endpoint serves 10 per page and dries up past 40.
+    pages_per_query: 3
+    # Look back 24h. Deduplication removes repeats, so the wide window simply
+    # covers any scheduled run that GitHub delayed or skipped.
+    time_filter: r86400
+
+    queries:
+      # --- Turkey (primary) ---
+      - { label: "TR/frontend",   keywords: "frontend developer",  geo_id: 102105699 }
+      - { label: "TR/front-end",  keywords: "front end developer", geo_id: 102105699 }
+      - { label: "TR/fullstack",  keywords: "fullstack developer", geo_id: 102105699 }
+      - { label: "TR/full-stack", keywords: "full stack developer", geo_id: 102105699 }
+      - { label: "TR/react",      keywords: "react developer",     geo_id: 102105699 }
+      - { label: "TR/swe",        keywords: "software engineer",   geo_id: 102105699 }
+      - { label: "TR/ai",         keywords: "ai engineer",         geo_id: 102105699 }
+
+      # --- Global (secondary) ---
+      # geo_id 92000000 is LinkedIn's worldwide scope. Note that f_WT (the remote
+      # filter) is deliberately absent: the guest endpoint accepts the parameter
+      # but ignores it, so remote is detected from the posting text instead.
+      - { label: "GL/frontend",   keywords: "frontend developer remote",  geo_id: 92000000 }
+      - { label: "GL/fullstack",  keywords: "fullstack developer remote", geo_id: 92000000 }
+      - { label: "GL/react",      keywords: "react developer remote",     geo_id: 92000000 }
+
+scoring:
+  # A job is notified when its score reaches this threshold. Anything lower is
+  # still archived to data/jobs.jsonl, it just does not buzz the phone.
+  notify_threshold: 4
+
+  # Matched against title + location + description (ATS sources carry a description).
+  positive:
+    react: 3
+    typescript: 3
+    "next.js": 3
+    nextjs: 3
+    frontend: 3
+    "front end": 3
+    fullstack: 3
+    "full stack": 3
+    javascript: 2
+    node: 2
+    "react native": 2
+    tailwind: 1
+    vue: 1
+    angular: 1
+    remote: 4
+    uzaktan: 4
+    hybrid: 1
+    llm: 3
+    "generative ai": 3
+    "ai engineer": 3
+    openai: 2
+
+  negative:
+    # Different stack entirely.
+    ".net": -5
+    "c#": -5
+    php: -5
+    laravel: -5
+    wordpress: -5
+    "java developer": -4
+    android: -3
+    ios: -3
+    # Wrong role family.
+    qa: -4
+    tester: -4
+    "test engineer": -4
+    devops: -3
+    sales: -6
+    marketing: -6
+    recruiter: -6
+    # Wrong seniority.
+    intern: -3
+    stajyer: -3
+    "10+ years": -2
+    "director": -3
+    "head of": -3
+
+  # Bonus by posting age in days. Fresher postings rank higher.
+  freshness:
+    0: 3
+    1: 1
+
+telegram:
+  # Token and chat id come from the environment (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID),
+  # never from this file.
+  enabled: true
+  # Safety valve: never send more than this many cards in one run.
+  max_notifications_per_run: 15
