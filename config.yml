@@ -72,7 +72,10 @@ scoring:
     php: -5
     laravel: -5
     wordpress: -5
-    "java developer": -4
+    # Whole-word matching means "java" cannot fire on "javascript".
+    java: -4
+    j2ee: -4
+    spring: -3
     android: -3
     ios: -3
     # Wrong role family.
@@ -90,7 +93,25 @@ scoring:
     "director": -3
     "head of": -3
 
-  # Bonus by posting age in days. Fresher postings rank higher.
+  # Disqualifying terms. Unlike a negative weight, a veto cannot be outscored by
+  # positive matches -- it removes the job from notifications outright. Use this
+  # for "never show me this" cases; use negative weights for "counts against it".
+  veto:
+    - ".net"
+    - "c#"
+    - php
+    - laravel
+    - wordpress
+    - java
+    - j2ee
+    - sales
+    - marketing
+    - recruiter
+    - intern
+    - stajyer
+
+  # Bonus by posting age in days, applied only when a job already matched at
+  # least one positive term. Freshness breaks ties; it is not evidence of fit.
   freshness:
     0: 3
     1: 1

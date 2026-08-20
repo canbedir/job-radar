@@ -10,7 +10,10 @@ import yaml
 
 from .fetcher import BudgetExhausted, Fetcher, RateLimited
 from .models import Job
+from .notify import Telegram
+from .score import Scorer
 from .sources import linkedin
+from .store import Store
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -23,7 +26,7 @@ def load_config(path: Path) -> dict:
 def collect_linkedin(cfg: dict, fetcher: Fetcher) -> tuple[list[Job], list[str]]:
     """Run every configured LinkedIn query.
 
-    A block ends the whole run, since more requests would only dig the hole
+    A block ends the whole run, since further requests would only dig the hole
     deeper. Any other per-query failure is recorded and the run continues.
     """
     source_cfg = cfg["sources"]["linkedin"]
@@ -49,23 +52,82 @@ def collect_linkedin(cfg: dict, fetcher: Fetcher) -> tuple[list[Job], list[str]]
             warnings.append(f"{label} failed: {exc}")
             continue
 
-        print(f"  {label:<16} {len(found):>3} jobs", file=sys.stderr)
+        log(f"  {label:<16} {len(found):>3} jobs")
         jobs.extend(found)
 
     return jobs, warnings
 
 
+def collect(cfg: dict, fetcher: Fetcher) -> tuple[list[Job], list[str]]:
+    jobs: list[Job] = []
+    warnings: list[str] = []
+
+    if cfg["sources"].get("linkedin", {}).get("enabled"):
+        log("collecting from linkedin...")
+        found, warns = collect_linkedin(cfg, fetcher)
+        jobs.extend(found)
+        warnings.extend(warns)
+
+    return jobs, warnings
+
+
+def log(message: str) -> None:
+    print(message, file=sys.stderr)
+
+
+def describe(job: Job, explain: bool = False) -> str:
+    remote = " [remote]" if job.remote else ""
+    line = f"[{job.score:>3}] {job.posted_at}  {job.title} @ {job.company} - {job.location}{remote}"
+    if explain and job.matched_terms:
+        line += f"\n       {', '.join(job.matched_terms)}"
+    line += f"\n       {job.url}"
+    return line
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="LinkedIn + ATS job radar")
     parser.add_argument("--config", default=str(ROOT / "config.yml"))
+    parser.add_argument("--data-dir", default=str(ROOT / "data"))
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="print results instead of notifying or writing state",
+        help="print results without notifying or writing state",
+    )
+    parser.add_argument(
+        "--explain",
+        action="store_true",
+        help="show which terms produced each score",
+    )
+    parser.add_argument(
+        "--test-notify",
+        action="store_true",
+        help="send one sample card to Telegram and exit",
     )
     args = parser.parse_args(argv)
 
     cfg = load_config(Path(args.config))
+    telegram = Telegram()
+
+    if args.test_notify:
+        if not telegram.configured:
+            log("TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID are not set")
+            return 1
+        sample = Job(
+            source="linkedin",
+            external_id="0",
+            title="Senior Frontend Engineer (React)",
+            company="Example Corp",
+            location="Istanbul, Turkey",
+            url="https://www.linkedin.com/jobs/",
+            posted_at="2026-08-20",
+            remote=True,
+            score=12,
+            matched_terms=["react+3", "typescript+3", "remote+4", "fresh(0d)+3"],
+        )
+        ok = telegram.send_job(sample)
+        log("sent" if ok else "failed")
+        return 0 if ok else 1
+
     run_cfg = cfg["run"]
     fetcher = Fetcher(
         max_requests=run_cfg["max_requests"],
@@ -73,26 +135,68 @@ def main(argv: list[str] | None = None) -> int:
         timeout=run_cfg["timeout"],
     )
 
-    print("collecting from linkedin...", file=sys.stderr)
-    jobs, warnings = collect_linkedin(cfg, fetcher)
+    jobs, warnings = collect(cfg, fetcher)
 
-    # Collapse duplicates that several queries surfaced, keeping first occurrence.
-    unique: dict[str, Job] = {}
-    for job in jobs:
-        unique.setdefault(job.key, job)
+    store = Store(Path(args.data_dir))
+    bootstrap = store.is_empty
+    fresh = store.filter_new(jobs)
 
-    print(
-        f"\n{len(jobs)} results, {len(unique)} unique, {fetcher.count} requests",
-        file=sys.stderr,
+    scorer = Scorer(cfg["scoring"])
+    scorer.apply(fresh)
+    fresh.sort(key=lambda j: (j.score, j.posted_at), reverse=True)
+
+    to_notify = [job for job in fresh if scorer.should_notify(job)]
+
+    log(
+        f"\n{len(jobs)} collected, {len(fresh)} new, "
+        f"{len(to_notify)} above threshold ({scorer.threshold}), "
+        f"{fetcher.count} requests"
     )
     for warning in warnings:
-        print(f"WARN {warning}", file=sys.stderr)
+        log(f"WARN {warning}")
 
-    for job in sorted(unique.values(), key=lambda j: j.posted_at, reverse=True):
-        remote = " [remote]" if job.remote else ""
-        print(f"{job.posted_at}  {job.title} @ {job.company} - {job.location}{remote}")
-        print(f"           {job.url}")
+    if args.dry_run:
+        for job in fresh:
+            print(describe(job, explain=args.explain))
+        log("\ndry run: nothing notified, nothing written")
+        return 0
 
+    tg_cfg = cfg.get("telegram", {})
+    if bootstrap:
+        # First run sees a whole 24h backlog at once. Sending all of it would
+        # bury the user under notifications, so the ledger is seeded silently
+        # and only real-time arrivals are announced from the next run onwards.
+        log(f"first run: seeding ledger with {len(fresh)} jobs, no notifications sent")
+        if tg_cfg.get("enabled") and telegram.configured:
+            telegram.send_text(
+                f"✅ <b>job radar armed</b>\nSeeded with {len(fresh)} existing postings. "
+                "You will be notified about new ones from now on."
+            )
+        store.commit(fresh)
+        log(f"state written to {store.seen_path}")
+        return 0
+
+    if tg_cfg.get("enabled") and telegram.configured:
+        limit = int(tg_cfg.get("max_notifications_per_run", 15))
+        overflow = len(to_notify) - limit
+        for job in to_notify[:limit]:
+            telegram.send_job(job)
+        if overflow > 0:
+            # Rather than spamming, say how many were held back; they stay in
+            # the archive and can be reviewed there.
+            telegram.send_text(f"…and {overflow} more matches this run (archived).")
+        # Report a degraded run instead of failing silently.
+        for warning in warnings:
+            if "rate limited" in warning:
+                telegram.send_warning(warning)
+                break
+    elif tg_cfg.get("enabled"):
+        log("WARN telegram enabled but credentials missing; skipping notifications")
+
+    # Everything collected is committed, not just what was notified, so a job
+    # below the threshold is never offered again on the next run.
+    store.commit(fresh)
+    log(f"state written to {store.seen_path}")
     return 0
 
 

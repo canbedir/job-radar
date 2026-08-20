@@ -1,0 +1,98 @@
+"""Persistent state: what has already been seen, and the archive of everything.
+
+Two files under data/:
+
+* seen.json  - dedup ledger, written back to the repo by the workflow so state
+               survives across runs on ephemeral GitHub runners.
+* jobs.jsonl - append-only archive of every job ever collected, including the
+               ones that scored below the notification threshold. Nothing is
+               lost just because it did not buzz the phone.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from datetime import date, datetime, timedelta
+from pathlib import Path
+
+from .models import Job
+
+# Drop ledger entries older than this. LinkedIn postings fall out of the search
+# window long before then, so anything older can never resurface as a duplicate.
+RETENTION_DAYS = 60
+
+
+class Store:
+    def __init__(self, data_dir: Path) -> None:
+        self.data_dir = data_dir
+        self.seen_path = data_dir / "seen.json"
+        self.archive_path = data_dir / "jobs.jsonl"
+        self.seen: dict[str, str] = {}
+        self._load()
+
+    def _load(self) -> None:
+        if not self.seen_path.exists():
+            return
+        try:
+            with self.seen_path.open(encoding="utf-8") as fh:
+                data = json.load(fh)
+            self.seen = data.get("seen", {})
+        except (json.JSONDecodeError, OSError):
+            # A corrupt ledger must not stop the run. Worst case the next run
+            # re-notifies recent jobs once, which is far better than crashing.
+            self.seen = {}
+
+    @property
+    def is_empty(self) -> bool:
+        """True on the very first run, before any ledger exists."""
+        return not self.seen
+
+    def is_new(self, job: Job) -> bool:
+        """True when neither the source id nor the cross-source fingerprint is known."""
+        return job.key not in self.seen and job.fingerprint not in self.seen
+
+    def mark(self, job: Job) -> None:
+        stamp = datetime.now().isoformat(timespec="seconds")
+        self.seen[job.key] = stamp
+        self.seen[job.fingerprint] = stamp
+
+    def filter_new(self, jobs: list[Job]) -> list[Job]:
+        """Return only jobs not seen before, without marking them yet.
+
+        Also collapses duplicates inside this batch, so two queries surfacing the
+        same posting cannot produce two notifications.
+        """
+        fresh: list[Job] = []
+        batch: set[str] = set()
+        for job in jobs:
+            if not self.is_new(job) or job.key in batch or job.fingerprint in batch:
+                continue
+            batch.add(job.key)
+            batch.add(job.fingerprint)
+            fresh.append(job)
+        return fresh
+
+    def _prune(self) -> None:
+        cutoff = (date.today() - timedelta(days=RETENTION_DAYS)).isoformat()
+        self.seen = {k: v for k, v in self.seen.items() if v >= cutoff}
+
+    def commit(self, jobs: list[Job]) -> None:
+        """Mark jobs as seen, append them to the archive and persist the ledger."""
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        for job in jobs:
+            self.mark(job)
+        self._prune()
+
+        if jobs:
+            with self.archive_path.open("a", encoding="utf-8") as fh:
+                for job in jobs:
+                    fh.write(json.dumps(job.to_dict(), ensure_ascii=False) + "\n")
+
+        # Write via a temporary file so an interrupted run cannot leave behind a
+        # truncated ledger that would re-notify everything.
+        tmp = self.seen_path.with_suffix(".json.tmp")
+        payload = {"updated_at": datetime.now().isoformat(timespec="seconds"), "seen": self.seen}
+        with tmp.open("w", encoding="utf-8") as fh:
+            json.dump(payload, fh, ensure_ascii=False, indent=0, sort_keys=True)
+        os.replace(tmp, self.seen_path)
