@@ -52,31 +52,18 @@ Anything scoring below `notify_threshold` is still archived to
 
 ## Setup
 
-**1. Create a Telegram bot**
-
-Message [@BotFather](https://t.me/BotFather), send `/newbot`, and copy the
-token. Then message your own bot once and get your chat id:
+Run the setup script and follow its prompts. It creates the connection,
+discovers your chat id and stores both GitHub secrets for you:
 
 ```bash
-curl "https://api.telegram.org/bot<TOKEN>/getUpdates"
+python scripts/setup_telegram.py
 ```
 
-Look for `"chat":{"id":...}` in the response.
+Before running it, create the bot: message [@BotFather](https://t.me/BotFather)
+on Telegram, send `/newbot`, and copy the token it replies with.
 
-**2. Add repository secrets**
-
-In *Settings → Secrets and variables → Actions*, add:
-
-- `TELEGRAM_BOT_TOKEN`
-- `TELEGRAM_CHAT_ID`
-
-**3. Enable the workflow**
-
-The schedule starts automatically. Trigger the first run by hand from the
-*Actions* tab so the ledger gets seeded.
-
-The first run seeds silently: it records the existing backlog without notifying,
-sends a single "radar armed" confirmation, and starts alerting from the next run.
+The workflow is already scheduled, so there is nothing else to enable. The first
+24 hours are a silent warm-up while the backlog settles; alerts start after that.
 
 ## Local use
 
