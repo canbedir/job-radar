@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from .models import Job
@@ -46,6 +46,16 @@ class Store:
             self.seen = {}
             self.created_at = ""
 
+    @staticmethod
+    def _utc_now() -> datetime:
+        """Timezone-aware UTC clock.
+
+        The ledger is written by GitHub runners (UTC) and read locally in
+        whatever zone the machine uses. A naive timestamp made those two
+        disagree by the offset, so every timing decision uses UTC explicitly.
+        """
+        return datetime.now(timezone.utc)
+
     def warmup_remaining(self, hours: int) -> float:
         """Hours left before notifications should start.
 
@@ -61,7 +71,11 @@ class Store:
             started = datetime.fromisoformat(self.created_at)
         except ValueError:
             return 0.0
-        elapsed = (datetime.now() - started).total_seconds() / 3600
+        if started.tzinfo is None:
+            # Ledgers written before timestamps carried a zone were produced by
+            # UTC runners, so read them as UTC rather than as local time.
+            started = started.replace(tzinfo=timezone.utc)
+        elapsed = (self._utc_now() - started).total_seconds() / 3600
         return max(hours - elapsed, 0.0)
 
     @property
@@ -74,7 +88,7 @@ class Store:
         return job.key not in self.seen and job.fingerprint not in self.seen
 
     def mark(self, job: Job) -> None:
-        stamp = datetime.now().isoformat(timespec="seconds")
+        stamp = self._utc_now().isoformat(timespec="seconds")
         self.seen[job.key] = stamp
         self.seen[job.fingerprint] = stamp
 
@@ -95,7 +109,7 @@ class Store:
         return fresh
 
     def _prune(self) -> None:
-        cutoff = (date.today() - timedelta(days=RETENTION_DAYS)).isoformat()
+        cutoff = (self._utc_now().date() - timedelta(days=RETENTION_DAYS)).isoformat()
         self.seen = {k: v for k, v in self.seen.items() if v >= cutoff}
 
     def commit(self, jobs: list[Job]) -> None:
@@ -113,7 +127,7 @@ class Store:
         # Write via a temporary file so an interrupted run cannot leave behind a
         # truncated ledger that would re-notify everything.
         tmp = self.seen_path.with_suffix(".json.tmp")
-        now = datetime.now().isoformat(timespec="seconds")
+        now = self._utc_now().isoformat(timespec="seconds")
         payload = {
             "created_at": self.created_at or now,
             "updated_at": now,
