@@ -225,6 +225,8 @@
 "greenhouse:figma:6144522004": "2026-08-20T15:53:38",
 "greenhouse:figma:6144871004": "2026-08-21T05:18:06",
 "greenhouse:figma:6144873004": "2026-08-20T15:53:38",
+"greenhouse:figma:6146574004": "2026-08-21T14:38:00",
+"greenhouse:figma:6149007004": "2026-08-21T14:38:00",
 "greenhouse:gitlab:8586667002": "2026-08-20T15:53:38",
 "greenhouse:gitlab:8615268002": "2026-08-20T15:53:38",
 "greenhouse:gitlab:8615322002": "2026-08-20T15:53:38",
@@ -609,6 +611,7 @@
 "manager customer success|gitlab": "2026-08-20T15:53:38",
 "manager design systems infrastructure|figma": "2026-08-20T15:53:38",
 "manager it operations|figma": "2026-08-20T15:53:38",
+"manager product code london united kingdom|figma": "2026-08-21T14:38:00",
 "manager support engineering us government|gitlab": "2026-08-20T15:53:38",
 "marketing artist|ancienda": "2026-08-21T13:48:14",
 "marketing artist|zynga": "2026-08-21T05:18:06",
@@ -810,6 +813,7 @@
 "staff software engineer|ping identity": "2026-08-21T02:46:59",
 "staff systems engineer it|gitlab": "2026-08-20T15:53:38",
 "strategic account executive seattle|gitlab": "2026-08-20T15:53:38",
+"strategic partner manager|figma": "2026-08-21T14:38:00",
 "strategic program manager information security|figma": "2026-08-20T15:53:38",
 "system support specialist|hitit": "2026-08-21T07:02:12",
 "technical account management tam leader|supabase": "2026-08-21T01:23:33",
@@ -838,5 +842,5 @@
 "yazilim pazarlama yonetici adayi|kefilin yazilim a s": "2026-08-20T15:53:38",
 "yazilim uzmani|coskunoz holding": "2026-08-20T15:53:38"
 },
-"updated_at": "2026-08-21T13:48:14"
+"updated_at": "2026-08-21T14:38:00"
 }
