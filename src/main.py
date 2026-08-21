@@ -223,7 +223,12 @@ def main(argv: list[str] | None = None) -> int:
             rejected["seniority"] = rejected.get("seniority", 0) + 1
         elif not filters.within_experience(job, int(experience["max_years"])):
             rejected["years"] = rejected.get("years", 0) + 1
-        elif not filters.is_reachable(job, location["commutable"], location["other_cities"]):
+        elif not filters.is_reachable(
+            job,
+            location["commutable"],
+            location["other_cities"],
+            allow_abroad=bool(profile["scopes"].get("global")),
+        ):
             rejected["location"] = rejected.get("location", 0) + 1
         else:
             to_notify.append(job)

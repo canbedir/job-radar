@@ -22,18 +22,28 @@ def within_experience(job: Job, max_years: int) -> bool:
     return job.years_required is None or job.years_required <= max_years
 
 
-def is_reachable(job: Job, commutable: list[str], other_cities: list[str]) -> bool:
+COUNTRY_WORDS = {"turkiye", "turkey"}
+
+
+def is_reachable(
+    job: Job,
+    commutable: list[str],
+    other_cities: list[str],
+    allow_abroad: bool = False,
+) -> bool:
     """True when the user could physically work this job.
 
-    Remote roles are exempt from geography. Anything requiring presence -- including
-    hybrid, which still means commuting -- must be somewhere the user can reach.
+    Remote roles are exempt from geography. Anything requiring presence --
+    including hybrid, which still means commuting -- must be somewhere reachable.
 
     Istanbul postings frequently name only a district ("Şişli", "Kartal") with no
     mention of the city, so the commutable list carries districts as well.
-    """
-    if job.remote:
-        return True
 
+    A location naming neither a known district nor the country is treated as
+    abroad. Recognising only Turkish cities is not enough: a search scoped to
+    Turkey still returns "Berlin, Almanya" and "Brezilya", and calling those
+    merely unrecognised let every one of them through.
+    """
     # Compared word by word rather than as substrings, so a short place name
     # cannot match inside an unrelated word.
     words = set(normalize(job.location).split())
@@ -43,9 +53,18 @@ def is_reachable(job: Job, commutable: list[str], other_cities: list[str]) -> bo
     if words & {normalize(place) for place in commutable}:
         return True
 
-    # A different city we recognise means the job is genuinely out of reach.
-    # An unrecognised or vague location ("Türkiye") is kept rather than guessed at.
-    return not (words & {normalize(city) for city in other_cities})
+    if words & COUNTRY_WORDS:
+        # Somewhere in Turkey but not Istanbul. Another named city is only
+        # workable remotely; a bare "Türkiye" names no city at all and is kept
+        # rather than guessed at.
+        if words & {normalize(city) for city in other_cities}:
+            return job.remote
+        return True
+
+    # Neither a known district nor the country: the posting is abroad. Remote
+    # does not exempt it -- a remote role advertised abroad is still a job in
+    # another country's language and hiring process.
+    return allow_abroad
 
 
 def title_allowed(job: Job, blocked: list[str]) -> bool:
