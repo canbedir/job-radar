@@ -23,6 +23,7 @@
 "ashby:supabase:1acade7a-0b80-4c6c-9253-7c27a165739d": "2026-08-21T01:23:33",
 "ashby:supabase:26f7817d-ca92-4094-a2b5-f22e07a218c4": "2026-08-21T01:23:33",
 "ashby:supabase:624d48cc-8d34-4607-bace-e6d045df70b8": "2026-08-21T01:23:33",
+"ashby:supabase:7a5d81a2-c586-4d7f-a179-89c95869ca33": "2026-08-21T08:52:46",
 "ashby:supabase:98ae5c78-eab7-4879-b143-96b98e4d0dbb": "2026-08-21T01:23:33",
 "ashby:supabase:a1320bbf-bfae-49a8-a1b7-12eeccaf39ca": "2026-08-21T03:52:40",
 "ashby:supabase:f52fd120-5fbe-4e0d-949d-01e217ec77d6": "2026-08-21T01:23:33",
@@ -33,6 +34,7 @@
 "associate fullstack developer|amadeus": "2026-08-20T15:53:38",
 "azure data engineer|jobgether": "2026-08-21T05:18:06",
 "back end developer ai infrastructure|alignerr": "2026-08-21T02:46:59",
+"backend developer|fuodix": "2026-08-21T08:52:46",
 "backend developer|nativeminds": "2026-08-20T15:53:38",
 "backend engineer ai engineering duo chat|gitlab": "2026-08-20T21:45:39",
 "backend engineer ingestion europe uk timezone|posthog": "2026-08-20T15:53:38",
@@ -66,6 +68,7 @@
 "ecosystem sales manager|gitlab": "2026-08-20T15:53:38",
 "engineer r d|beko corporate": "2026-08-20T21:45:39",
 "engineering manager build|gitlab": "2026-08-20T15:53:38",
+"engineering manager database change management|gitlab": "2026-08-21T08:52:46",
 "erp developer ifs|kologlu holding": "2026-08-20T15:53:38",
 "executive recruiter|figma": "2026-08-20T15:53:38",
 "expert full stack engineer|ciklum": "2026-08-20T15:53:38",
@@ -75,6 +78,7 @@
 "forward deployed ai engineer turkiye bcg x|bcg x": "2026-08-20T15:53:38",
 "forward deployed ai engineer|zaigo": "2026-08-20T15:53:38",
 "forward deployed ai scientist turkiye bcg x|bcg x": "2026-08-20T17:48:11",
+"founding technical program manager|supabase": "2026-08-21T08:52:46",
 "front end developer|great company": "2026-08-21T07:59:20",
 "front end engineer react js typescript|sundayy": "2026-08-20T19:20:55",
 "front end senior engineer|delinea": "2026-08-20T19:20:55",
@@ -213,6 +217,7 @@
 "greenhouse:gitlab:8716138002": "2026-08-20T15:53:38",
 "greenhouse:gitlab:8716179002": "2026-08-20T15:53:38",
 "greenhouse:gitlab:8722934002": "2026-08-20T22:47:24",
+"greenhouse:gitlab:8725566002": "2026-08-21T08:52:46",
 "greenhouse:gitlab:8725981002": "2026-08-20T15:53:38",
 "greenhouse:gitlab:8729451002": "2026-08-20T15:53:38",
 "greenhouse:vercel:6144467004": "2026-08-20T15:53:38",
@@ -354,6 +359,7 @@
 "linkedin:4454181205": "2026-08-21T06:00:01",
 "linkedin:4454184131": "2026-08-21T06:00:01",
 "linkedin:4454185322": "2026-08-21T07:02:12",
+"linkedin:4454198578": "2026-08-21T08:52:46",
 "linkedin:4454542320": "2026-08-20T19:20:55",
 "linkedin:4455406988": "2026-08-20T15:53:38",
 "linkedin:4455421340": "2026-08-20T15:53:38",
@@ -670,5 +676,5 @@
 "yazilim pazarlama yonetici adayi|kefilin yazilim a s": "2026-08-20T15:53:38",
 "yazilim uzmani|coskunoz holding": "2026-08-20T15:53:38"
 },
-"updated_at": "2026-08-21T07:59:20"
+"updated_at": "2026-08-21T08:52:46"
 }
