@@ -27,8 +27,13 @@ directly, which list a role one to three days before LinkedIn indexes it.
 ```
 LinkedIn guest API ─┐
                     ├─→ normalize → dedup → score → Telegram
-ATS boards ─────────┘                   └─→ data/jobs.jsonl (archive)
+ATS boards ─────────┘                   └─→ archive (radar-state branch)
 ```
+
+State lives on an orphan `radar-state` branch, committed by the Actions bot.
+GitHub counts contributions only from the default branch, so the automated
+ledger commits never reach the owner's profile graph, and `main` stays limited
+to real code changes.
 
 **Sources**
 

@@ -7,3 +7,6 @@ venv/
 .DS_Store
 .idea/
 .vscode/
+
+# Ledger lives on the radar-state branch, not on main.
+data/

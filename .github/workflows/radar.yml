@@ -2,22 +2,29 @@ name: job radar
 
 on:
   schedule:
-    # Every 15 minutes. GitHub treats scheduled runs as best-effort and often
-    # delays them by 20-40 minutes under load. That jitter is irrelevant here:
-    # LinkedIn itself indexes new postings 18-48 hours late, and the 24h
-    # lookback window means a delayed or skipped run loses nothing.
+    # Every 15 minutes. GitHub treats scheduled runs as best-effort and throttles
+    # them heavily on public repos, so in practice this fires roughly hourly.
+    # That is fine: LinkedIn itself indexes new postings 18-48 hours late, and
+    # the 24h lookback window means a delayed or skipped run loses nothing.
     - cron: "*/15 * * * *"
   workflow_dispatch:
 
-# The ledger is committed back to the repo, so two overlapping runs would race
-# on the same file. Never cancel the run in progress -- it may already have sent
-# notifications whose state must still be written.
+# The ledger is pushed back to the repo, so two overlapping runs would race on
+# it. Never cancel the run in progress -- it may already have sent notifications
+# whose state must still be recorded.
 concurrency:
   group: job-radar
   cancel-in-progress: false
 
 permissions:
   contents: write
+
+env:
+  # The ledger lives on its own orphan branch rather than on main. GitHub counts
+  # contributions only from the default branch, so keeping state off main means
+  # these automated commits never show up on the owner's profile graph, and
+  # main's history stays limited to actual code changes.
+  STATE_BRANCH: radar-state
 
 jobs:
   scan:
@@ -34,6 +41,18 @@ jobs:
 
       - run: pip install -r requirements.txt
 
+      - name: Restore ledger
+        run: |
+          if git ls-remote --exit-code --heads origin "$STATE_BRANCH" >/dev/null 2>&1; then
+            git fetch --depth=1 -q origin "$STATE_BRANCH"
+            mkdir -p data
+            git show "FETCH_HEAD:data/seen.json"  > data/seen.json
+            git show "FETCH_HEAD:data/jobs.jsonl" > data/jobs.jsonl
+            echo "restored $(wc -l < data/jobs.jsonl) archived jobs"
+          else
+            echo "no ledger branch yet; this run will seed it"
+          fi
+
       - name: Scan for new jobs
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -41,15 +60,32 @@ jobs:
         run: python -m src.main
 
       - name: Persist ledger
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if [ -z "$(git status --porcelain data/)" ]; then
-            echo "no new jobs, nothing to commit"
+          REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          if ! git clone --depth=1 --branch "$STATE_BRANCH" -q "$REMOTE" ../state 2>/dev/null; then
+            mkdir -p ../state
+            git -C ../state init -q
+            git -C ../state checkout -q -b "$STATE_BRANCH"
+            git -C ../state remote add origin "$REMOTE"
+          fi
+
+          mkdir -p ../state/data
+          cp data/seen.json data/jobs.jsonl ../state/data/ 2>/dev/null || true
+
+          # Commit as the Actions bot, not as the repo owner, so the ledger
+          # cannot be mistaken for human activity anywhere it is displayed.
+          git -C ../state config user.name "github-actions[bot]"
+          git -C ../state config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C ../state add -A data
+
+          if git -C ../state diff --cached --quiet; then
+            echo "no new jobs, nothing to persist"
             exit 0
           fi
-          git config user.name "canbedir"
-          git config user.email "canbedir100@gmail.com"
-          git add data/
-          git commit -m "Update job ledger"
-          # Another run may have pushed while this one was scanning.
-          git pull --rebase --autostash origin "${GITHUB_REF_NAME}"
-          git push
+
+          git -C ../state commit -q -m "Update job ledger"
+          git -C ../state push -q origin "$STATE_BRANCH"
+          echo "ledger pushed to $STATE_BRANCH"
