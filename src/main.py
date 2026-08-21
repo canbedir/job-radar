@@ -8,6 +8,8 @@ from pathlib import Path
 
 import yaml
 
+from . import enrich as enrich_mod
+from . import filters
 from .fetcher import BudgetExhausted, Fetcher, RateLimited
 from .models import Job
 from .notify import Telegram
@@ -30,10 +32,13 @@ def collect_linkedin(cfg: dict, fetcher: Fetcher) -> tuple[list[Job], list[str]]
     deeper. Any other per-query failure is recorded and the run continues.
     """
     source_cfg = cfg["sources"]["linkedin"]
+    scopes = cfg["profile"]["scopes"]
     jobs: list[Job] = []
     warnings: list[str] = []
 
     for query in source_cfg["queries"]:
+        if not scopes.get(query.get("scope", "turkey"), False):
+            continue
         label = query.get("label", query["keywords"])
         try:
             found = linkedin.fetch(
@@ -65,11 +70,14 @@ def collect_ats(cfg: dict, fetcher: Fetcher) -> tuple[list[Job], list[str]]:
     them and one unreachable board must not stop the others.
     """
     source_cfg = cfg["sources"]["ats"]
+    scopes = cfg["profile"]["scopes"]
     max_age = int(source_cfg.get("max_age_days", 7))
     jobs: list[Job] = []
     warnings: list[str] = []
 
     for entry in source_cfg["companies"]:
+        if not scopes.get(entry.get("scope", "turkey"), False):
+            continue
         board, slug = entry["board"], entry["slug"]
         adapter = ats.ADAPTERS.get(board)
         if adapter is None:
@@ -117,7 +125,11 @@ def log(message: str) -> None:
 
 def describe(job: Job, explain: bool = False) -> str:
     remote = " [remote]" if job.remote else ""
-    line = f"[{job.score:>3}] {job.posted_at}  {job.title} @ {job.company} - {job.location}{remote}"
+    years = f" [{job.years_required}y required]" if job.years_required is not None else ""
+    line = (
+        f"[{job.score:>3}] {job.posted_at}  {job.title} @ {job.company}"
+        f" - {job.location}{remote}{years}"
+    )
     if explain and job.matched_terms:
         line += f"\n       {', '.join(job.matched_terms)}"
     line += f"\n       {job.url}"
@@ -182,22 +194,52 @@ def main(argv: list[str] | None = None) -> int:
     warmup_left = store.warmup_remaining(int(run_cfg.get("warmup_hours", 24)))
     fresh = store.filter_new(jobs)
 
+    profile = cfg["profile"]
     scorer = Scorer(cfg["scoring"])
+    scorer.apply(fresh)
+
+    # Read the full posting for jobs that already look relevant. Titles conceal
+    # both seniority -- a plain "Frontend Developer" was measured demanding four
+    # years -- and technology, so this pass rescores as well as filters.
+    candidates = sorted(
+        (job for job in fresh if scorer.should_notify(job)),
+        key=lambda j: (j.score, j.posted_at),
+        reverse=True,
+    )
+    warnings += enrich_mod.enrich(
+        fetcher, candidates, int(run_cfg.get("max_enrich_per_run", 25))
+    )
     scorer.apply(fresh)
     fresh.sort(key=lambda j: (j.score, j.posted_at), reverse=True)
 
-    to_notify = [job for job in fresh if scorer.should_notify(job)]
+    experience = profile["experience"]
+    location = profile["location"]
+    to_notify: list[Job] = []
+    rejected: dict[str, int] = {}
+    for job in fresh:
+        if not scorer.should_notify(job):
+            continue
+        if not filters.title_allowed(job, experience["blocked_titles"]):
+            rejected["seniority"] = rejected.get("seniority", 0) + 1
+        elif not filters.within_experience(job, int(experience["max_years"])):
+            rejected["years"] = rejected.get("years", 0) + 1
+        elif not filters.is_reachable(job, location["commutable"], location["other_cities"]):
+            rejected["location"] = rejected.get("location", 0) + 1
+        else:
+            to_notify.append(job)
 
     log(
         f"\n{len(jobs)} collected, {len(fresh)} new, "
-        f"{len(to_notify)} above threshold ({scorer.threshold}), "
-        f"{fetcher.count} requests"
+        f"{len(to_notify)} to notify, {fetcher.count} requests"
     )
+    if rejected:
+        log("  filtered out: " + ", ".join(f"{k}={v}" for k, v in sorted(rejected.items())))
     for warning in warnings:
         log(f"WARN {warning}")
 
     if args.dry_run:
-        for job in fresh:
+        # Print what would actually be sent, not everything collected.
+        for job in to_notify:
             print(describe(job, explain=args.explain))
         log("\ndry run: nothing notified, nothing written")
         return 0

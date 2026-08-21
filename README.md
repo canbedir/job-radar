@@ -25,9 +25,10 @@ directly, which list a role one to three days before LinkedIn indexes it.
 ## How it works
 
 ```
-LinkedIn guest API ─┐
-                    ├─→ normalize → dedup → score → Telegram
-ATS boards ─────────┘                   └─→ archive (radar-state branch)
+LinkedIn guest API ─┐                    ┌─→ read full posting ─┐
+                    ├─→ normalize → dedup ┤                     ├─→ filter → Telegram
+ATS boards ─────────┘                    └─→ score ─────────────┘
+                                                    └─→ archive (radar-state branch)
 ```
 
 State lives on an orphan `radar-state` branch, committed by the Actions bot.
@@ -83,18 +84,40 @@ python -m src.main                        # full run: notify and write state
 
 ## Tuning
 
-Everything lives in `config.yml`.
+Open `config.yml`. Everything you are likely to change is in the block at the
+top; the machinery below it rarely needs touching.
 
-**Change what you are looking for** — edit `sources.linkedin.queries`. Each
-entry is a keyword plus a `geo_id` (`102105699` is Turkey, `92000000` is
-worldwide). The endpoint returns 10 results per page and stops past 40, so
-coverage comes from several narrow queries rather than one broad one.
+**Want jobs abroad** — flip one line:
+
+```yaml
+scopes:
+  global: true
+```
+
+While it is false those queries are skipped entirely, so they cost no requests.
+
+**Seniority** — `experience.max_years` drops jobs whose description demands more
+years than you have, and `blocked_titles` drops titles that announce a level
+above yours. Titles alone are not enough: a plain "Frontend Developer" was
+measured demanding four years while an "Associate" posting asked for two, which
+is why the real filter reads the body of the posting.
+
+**Location** — `location.commutable` lists where you can physically work.
+Remote jobs skip this check entirely; anything on-site or hybrid must be within
+reach. Istanbul postings frequently name only a district ("Şişli", "Kartal")
+and never the city, so districts are listed individually. A vague location such
+as "Türkiye" is kept rather than guessed at.
+
+**Roles and technologies** — `scoring.role` is what the job *is*; `scoring.bonus`
+refines an already-relevant match. Role terms are matched in the title and at
+half weight in the description, which is how postings titled "Software Engineer"
+still surface when the body asks for Next.js.
 
 **Too many notifications** — raise `scoring.notify_threshold`, or add the
 offending term to `scoring.veto`.
 
-**Missing jobs you wanted** — check whether a `negative` or `veto` term is
-catching them. `--dry-run --explain` prints the exact terms behind every score.
+**Missing jobs you wanted** — run `--dry-run --explain` to see the exact terms
+behind every score and which filter rejected what.
 
 **Watch another company's ATS** — find its board URL (`jobs.lever.co/<slug>`,
 `boards.greenhouse.io/<slug>`, `jobs.ashbyhq.com/<slug>`) and add the slug to

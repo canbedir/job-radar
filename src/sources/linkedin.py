@@ -117,3 +117,24 @@ def fetch(fetcher: Fetcher, query: dict, pages: int, time_filter: str) -> list[J
         jobs.extend(page_jobs)
 
     return jobs
+
+
+DETAIL_URL = "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{job_id}"
+
+_DESCRIPTION = re.compile(r'class="[^"]*description__text[^"]*"(.*?)</section>', re.S)
+
+
+def fetch_detail(fetcher: Fetcher, job_id: str) -> str:
+    """Fetch the full description text for one posting.
+
+    The search endpoint returns titles only, but seniority is usually stated in
+    the body ("at least 5 years"), not the title -- a plain "Frontend Developer"
+    can still demand four years. This is the only way to see that.
+
+    LinkedIn's own seniority label is deliberately ignored: it is unreliable
+    (postings tagged "Entry level" were found demanding four years) and its
+    wording changes with the request's Accept-Language.
+    """
+    markup = fetcher.get(DETAIL_URL.format(job_id=job_id)).text
+    match = _DESCRIPTION.search(markup)
+    return _text(match.group(1)) if match else ""

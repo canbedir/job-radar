@@ -1,85 +1,61 @@
-# Job radar configuration.
-# Everything here is tunable without touching the code.
+# =============================================================================
+#  YOUR SETTINGS -- everything you are likely to change lives in this block.
+#  The sections further down rarely need touching.
+# =============================================================================
 
-run:
-  # Hard ceiling on HTTP requests per run. LinkedIn throttles a single IP after
-  # roughly ten rapid pages, so the budget stays well under that.
-  max_requests: 80
-  # Random delay between requests, in seconds.
-  delay_range: [1.0, 3.0]
-  timeout: 15
-  # Stay silent for this long after the ledger is created. LinkedIn returns a
-  # different slice of its backlog on every call, so the first day of runs keeps
-  # turning up older postings that are new only to the ledger. Once the window
-  # closes, anything new really is new.
-  warmup_hours: 24
+profile:
+  # Which parts of the world to search. Flip `global` to true when you want
+  # jobs abroad; the queries tagged global are skipped entirely while it is
+  # false, so they cost no requests either.
+  scopes:
+    turkey: true
+    global: false
 
-sources:
-  linkedin:
-    enabled: true
-    # Pages per query. The endpoint serves 10 per page and dries up past 40.
-    pages_per_query: 3
-    # Look back 24h. Deduplication removes repeats, so the wide window simply
-    # covers any scheduled run that GitHub delayed or skipped.
-    time_filter: r86400
+  experience:
+    # Drop jobs whose description demands more years than this. Titles are a
+    # poor guide -- a plain "Frontend Developer" was measured asking for four
+    # years while an "Associate" posting asked for two -- so the real filter
+    # reads the body of the posting. Jobs that state no requirement are kept.
+    max_years: 3
 
-    queries:
-      # --- Turkey (primary) ---
-      - { label: "TR/frontend",   keywords: "frontend developer",  geo_id: 102105699 }
-      - { label: "TR/front-end",  keywords: "front end developer", geo_id: 102105699 }
-      - { label: "TR/fullstack",  keywords: "fullstack developer", geo_id: 102105699 }
-      - { label: "TR/full-stack", keywords: "full stack developer", geo_id: 102105699 }
-      - { label: "TR/react",      keywords: "react developer",     geo_id: 102105699 }
-      - { label: "TR/swe",        keywords: "software engineer",   geo_id: 102105699 }
-      - { label: "TR/ai",         keywords: "ai engineer",         geo_id: 102105699 }
+    # Titles that announce a level above yours. Matched as whole words, so
+    # "senior" does not catch "Senior-friendly" phrasing elsewhere.
+    blocked_titles: [senior, sr, lead, staff, principal, architect, director, head, manager]
 
-      # --- Global (secondary) ---
-      # geo_id 92000000 is LinkedIn's worldwide scope. Note that f_WT (the remote
-      # filter) is deliberately absent: the guest endpoint accepts the parameter
-      # but ignores it, so remote is detected from the posting text instead.
-      - { label: "GL/frontend",   keywords: "frontend developer remote",  geo_id: 92000000 }
-      - { label: "GL/fullstack",  keywords: "fullstack developer remote", geo_id: 92000000 }
-      - { label: "GL/react",      keywords: "react developer remote",     geo_id: 92000000 }
+  location:
+    # Where you can physically work. Remote jobs ignore this entirely; anything
+    # on-site or hybrid must be within reach. Istanbul postings very often name
+    # only the district and never the city, hence the long list.
+    # Written without Turkish diacritics because locations are folded to ASCII
+    # before matching ("Şişli" -> "sisli").
+    commutable: [
+      istanbul,
+      adalar, arnavutkoy, atasehir, avcilar, bagcilar, bahcelievler, bakirkoy,
+      basaksehir, bayrampasa, besiktas, beykoz, beylikduzu, beyoglu,
+      buyukcekmece, catalca, cekmekoy, esenler, esenyurt, eyupsultan, fatih,
+      gaziosmanpasa, gungoren, kadikoy, kagithane, kartal, kucukcekmece,
+      maltepe, pendik, sancaktepe, sariyer, silivri, sultanbeyli, sultangazi,
+      sile, sisli, tuzla, umraniye, uskudar, zeytinburnu,
+      levent, maslak, etiler, kozyatagi, altunizade, kavacik,
+    ]
 
-  # Public ATS job boards. These are documented, unauthenticated JSON endpoints
-  # that companies use to embed openings on their own sites -- not scraping.
-  # They publish a role as soon as it goes live, typically one to three days
-  # before LinkedIn's crawler indexes it, which is the whole reason they matter.
-  #
-  # Every slug below was verified to return live postings. To add a company,
-  # find its board URL: jobs.lever.co/<slug>, boards.greenhouse.io/<slug>,
-  # or jobs.ashbyhq.com/<slug>.
-  ats:
-    enabled: true
-    # These boards return their full catalogue, including years-old postings.
-    max_age_days: 7
-
-    companies:
-      # --- Turkey ---
-      - { board: lever,      slug: dreamgames }
-      - { board: lever,      slug: picus }
-
-      # --- Global, remote-friendly ---
-      - { board: greenhouse, slug: vercel }
-      - { board: greenhouse, slug: gitlab }
-      - { board: greenhouse, slug: cloudflare }
-      - { board: greenhouse, slug: figma }
-      - { board: greenhouse, slug: doximity }
-      - { board: ashby,      slug: linear }
-      - { board: ashby,      slug: supabase }
-      - { board: ashby,      slug: posthog }
+    # Other cities we recognise. Naming one of these means the job is out of
+    # reach. A vague location such as "Türkiye" is kept, not guessed at.
+    other_cities: [
+      ankara, izmir, bursa, antalya, kocaeli, gebze, adana, konya, mersin,
+      gaziantep, eskisehir, denizli, kayseri, samsun, trabzon, sakarya,
+      tekirdag, manisa, balikesir, aydin, mugla, malatya, erzurum, diyarbakir,
+    ]
 
 scoring:
-  # A job is notified when its score reaches this threshold. Anything lower is
-  # still archived to data/jobs.jsonl, it just does not buzz the phone.
+  # A job is notified at or above this score. Lower-scoring jobs are still
+  # archived; they simply do not buzz your phone. Raise it if you get too many.
   notify_threshold: 4
 
-  # Matched against title + location only. Descriptions are deliberately excluded:
-  # ATS sources carry one and LinkedIn does not, so including them would score the
-  # same job differently depending on where it arrived from.
-
-  # Role terms are the primary relevance signal -- what the job actually is.
-  # At least one must match before any bonus or freshness point is awarded.
+  # What the job IS. At least one of these must match before any bonus or
+  # freshness point is awarded. Matched in the title, and at half weight in the
+  # description -- postings titled "Software Engineer" often turn out to be
+  # Next.js roles once you read the body.
   role:
     frontend: 3
     "front end": 3
@@ -90,55 +66,43 @@ scoring:
     "next.js": 3
     nextjs: 3
     javascript: 2
+    typescript: 3
     node: 2
-    vue: 1
-    angular: 1
+    "node.js": 2
+    nestjs: 2
+    express: 1
+    "web developer": 2
+    "software engineer": 2
     "ai engineer": 3
     llm: 3
     "generative ai": 3
+    claude: 2
+    openai: 2
 
-  # Bonus terms only refine an already-relevant job. "remote" describes how you
-  # work, not what the job is; on its own it must never carry a posting over the
-  # threshold, or every "Senior Engagement Manager, Remote" would be notified.
+  # Refinements. Only counted once a role term has already matched, so a job is
+  # never notified purely for being remote.
   bonus:
     remote: 4
     uzaktan: 4
     hybrid: 1
-    typescript: 3
     tailwind: 1
-    openai: 2
+    graphql: 1
+    "junior": 3
+    "entry level": 3
 
+  # Counts against a job but can be outweighed by a strong match.
   negative:
-    # Different stack entirely.
-    ".net": -5
-    "c#": -5
-    php: -5
-    laravel: -5
-    wordpress: -5
-    # Whole-word matching means "java" cannot fire on "javascript".
-    java: -4
-    j2ee: -4
-    spring: -3
     android: -3
     ios: -3
-    # Wrong role family.
+    devops: -3
     qa: -4
     tester: -4
     "test engineer": -4
-    devops: -3
-    sales: -6
-    marketing: -6
-    recruiter: -6
-    # Wrong seniority.
-    intern: -3
-    stajyer: -3
-    "10+ years": -2
-    "director": -3
-    "head of": -3
+    spring: -3
 
-  # Disqualifying terms. Unlike a negative weight, a veto cannot be outscored by
-  # positive matches -- it removes the job from notifications outright. Use this
-  # for "never show me this" cases; use negative weights for "counts against it".
+  # Disqualifying. Unlike a negative weight, a veto cannot be outscored --
+  # use it for "never show me this". Matched in the title only, never in the
+  # description, so one passing mention cannot kill a good match.
   veto:
     - ".net"
     - "c#"
@@ -153,15 +117,83 @@ scoring:
     - intern
     - stajyer
 
-  # Bonus by posting age in days, applied only when a job already matched at
-  # least one positive term. Freshness breaks ties; it is not evidence of fit.
+  # Tie-breaker among relevant jobs, by age in days. Not evidence of fit, so it
+  # only applies once a role term has matched.
   freshness:
     0: 3
     1: 1
 
+# =============================================================================
+#  MACHINERY -- sources, budgets and delivery. Rarely needs editing.
+# =============================================================================
+
+run:
+  # Hard ceiling on HTTP requests per run. LinkedIn throttles a single IP after
+  # roughly ten rapid pages, so this stays well under that.
+  max_requests: 120
+  # Random delay between requests, in seconds.
+  delay_range: [1.0, 3.0]
+  timeout: 15
+  # Stay silent for this long after the ledger is created. LinkedIn returns a
+  # different slice of its backlog on every call, so the first day of runs keeps
+  # turning up older postings that are new only to the ledger.
+  warmup_hours: 24
+  # Reading a job's full description costs one extra request, so only promising
+  # jobs are enriched, and no more than this many per run.
+  max_enrich_per_run: 25
+
+sources:
+  linkedin:
+    enabled: true
+    # The endpoint serves 10 results per page and dries up past 40.
+    pages_per_query: 3
+    # 24h lookback. Deduplication removes repeats, so the wide window simply
+    # covers any scheduled run that GitHub delayed or skipped.
+    time_filter: r86400
+
+    queries:
+      - { scope: turkey, label: "TR/frontend",   keywords: "frontend developer",   geo_id: 102105699 }
+      - { scope: turkey, label: "TR/front-end",  keywords: "front end developer",  geo_id: 102105699 }
+      - { scope: turkey, label: "TR/fullstack",  keywords: "fullstack developer",  geo_id: 102105699 }
+      - { scope: turkey, label: "TR/full-stack", keywords: "full stack developer", geo_id: 102105699 }
+      - { scope: turkey, label: "TR/react",      keywords: "react developer",      geo_id: 102105699 }
+      - { scope: turkey, label: "TR/next",       keywords: "next.js developer",    geo_id: 102105699 }
+      - { scope: turkey, label: "TR/swe",        keywords: "software engineer",    geo_id: 102105699 }
+      - { scope: turkey, label: "TR/ai",         keywords: "ai engineer",          geo_id: 102105699 }
+
+      # geo_id 92000000 is LinkedIn's worldwide scope. f_WT (the remote filter)
+      # is deliberately absent: the guest endpoint accepts it but ignores it, so
+      # remote is detected from the posting text instead.
+      - { scope: global, label: "GL/frontend",   keywords: "frontend developer remote",  geo_id: 92000000 }
+      - { scope: global, label: "GL/fullstack",  keywords: "fullstack developer remote", geo_id: 92000000 }
+      - { scope: global, label: "GL/react",      keywords: "react developer remote",     geo_id: 92000000 }
+
+  # Public ATS boards. These are documented, unauthenticated JSON endpoints that
+  # companies use to embed openings on their own sites -- not scraping. They
+  # list a role one to three days before LinkedIn's crawler indexes it.
+  #
+  # To add a company, find its board URL: jobs.lever.co/<slug>,
+  # boards.greenhouse.io/<slug>, or jobs.ashbyhq.com/<slug>.
+  ats:
+    enabled: true
+    # These boards return their whole catalogue, including years-old postings.
+    max_age_days: 7
+
+    companies:
+      - { scope: turkey, board: lever,      slug: dreamgames }
+      - { scope: turkey, board: lever,      slug: picus }
+
+      - { scope: global, board: greenhouse, slug: vercel }
+      - { scope: global, board: greenhouse, slug: gitlab }
+      - { scope: global, board: greenhouse, slug: cloudflare }
+      - { scope: global, board: greenhouse, slug: figma }
+      - { scope: global, board: greenhouse, slug: doximity }
+      - { scope: global, board: ashby,      slug: linear }
+      - { scope: global, board: ashby,      slug: supabase }
+      - { scope: global, board: ashby,      slug: posthog }
+
 telegram:
-  # Token and chat id come from the environment (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID),
-  # never from this file.
+  # Credentials come from the environment (TELEGRAM_BOT_TOKEN /
+  # TELEGRAM_CHAT_ID), never from this file.
   enabled: true
-  # Safety valve: never send more than this many cards in one run.
   max_notifications_per_run: 15

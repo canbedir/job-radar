@@ -44,6 +44,10 @@ class Job:
     description: str = ""        # populated by ATS sources, empty for LinkedIn
     query_label: str = ""        # which query surfaced this job (for debugging)
 
+    # Filled in by the enrichment pass, which fetches the full posting.
+    years_required: int | None = None
+    enriched: bool = False
+
     score: int = 0
     matched_terms: list[str] = field(default_factory=list)
 

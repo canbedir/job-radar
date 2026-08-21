@@ -58,12 +58,13 @@ class Scorer:
         self.veto = _compile({term: 0 for term in (cfg.get("veto") or [])})
 
     def score(self, job: Job, today: date | None = None) -> tuple[int, list[str]]:
-        # Deliberately title + location only, never the description. ATS sources
-        # carry a full description while LinkedIn carries none, so including it
-        # would score the same job differently depending on where it arrived
-        # from, and a passing mention of "php" in an 8k-character body would
-        # trip the veto on an otherwise perfect match.
         haystack = normalize(f"{job.title} {job.location}")
+        # The body is searched for role and bonus terms only. Titles understate
+        # what a job is -- postings titled "Software Engineer" routinely ask for
+        # Next.js in the body -- so ignoring it loses real matches. Vetoes and
+        # penalties stay title-only on purpose: one passing mention of "php" in
+        # a 3000-character description would otherwise kill a perfect match.
+        body = normalize(job.description) if job.description else ""
         total = 0
         matched: list[str] = []
         hits = 0
@@ -79,6 +80,13 @@ class Scorer:
                 total += points
                 hits += 1
                 matched.append(f"{term}{points:+d}")
+            elif body and pattern.search(body):
+                # Half weight: the body proves the technology is involved, not
+                # that the role is centred on it.
+                half = max(points // 2, 1)
+                total += half
+                hits += 1
+                matched.append(f"{term}(desc){half:+d}")
 
         for term, pattern, points in self.negative:
             if pattern.search(haystack):
@@ -94,6 +102,10 @@ class Scorer:
                 if pattern.search(haystack):
                     total += points
                     matched.append(f"{term}{points:+d}")
+                elif body and pattern.search(body):
+                    half = max(points // 2, 1)
+                    total += half
+                    matched.append(f"{term}(desc){half:+d}")
 
             age = _age_in_days(job.posted_at, today)
             if age is not None and age in self.freshness:
