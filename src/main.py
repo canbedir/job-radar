@@ -279,11 +279,15 @@ def main(argv: list[str] | None = None) -> int:
             # Rather than spamming, say how many were held back; they stay in
             # the archive and can be reviewed there.
             telegram.send_text(f"…and {overflow} more matches this run (archived).")
-        # Report a degraded run instead of failing silently.
-        for warning in warnings:
-            if "rate limited" in warning:
-                telegram.send_warning(warning)
-                break
+        # Only speak up when the run actually failed. LinkedIn hands GitHub's
+        # shared runner IPs a 429 now and then, usually partway through the
+        # queries, and the next run is fine. Reporting that is noise the user
+        # can do nothing about; a run that collected nothing at all is not.
+        if not jobs and any("rate limited" in w for w in warnings):
+            telegram.send_warning(
+                "No jobs could be collected this run -- LinkedIn rate limited "
+                "every query. This usually clears by itself on the next run."
+            )
     elif tg_cfg.get("enabled"):
         log("WARN telegram enabled but credentials missing; skipping notifications")
 
