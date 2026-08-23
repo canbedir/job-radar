@@ -74,14 +74,28 @@ scoring:
     "web developer": 2
     "software engineer": 2
     "ai engineer": 3
+    "ai developer": 3
+    "ai agent": 3
+    "yapay zeka": 3
     llm: 3
     "generative ai": 3
-    claude: 2
-    openai: 2
+    genai: 3
+    "prompt engineer": 3
+    "machine learning": 2
 
   # Refinements. Only counted once a role term has already matched, so a job is
   # never notified purely for being remote.
   bonus:
+    rag: 2
+    langchain: 2
+    embedding: 2
+    embeddings: 2
+    "vector database": 2
+    anthropic: 2
+    claude: 2
+    openai: 2
+    gemini: 1
+    gpt: 1
     remote: 4
     uzaktan: 4
     hybrid: 1
@@ -160,6 +174,9 @@ sources:
       - { scope: turkey, label: "TR/next",       keywords: "next.js developer",    geo_id: 102105699 }
       - { scope: turkey, label: "TR/swe",        keywords: "software engineer",    geo_id: 102105699 }
       - { scope: turkey, label: "TR/ai",         keywords: "ai engineer",          geo_id: 102105699 }
+      - { scope: turkey, label: "TR/llm",        keywords: "llm engineer",         geo_id: 102105699 }
+      - { scope: turkey, label: "TR/aidev",      keywords: "ai developer",         geo_id: 102105699 }
+      - { scope: turkey, label: "TR/genai",      keywords: "generative ai",        geo_id: 102105699 }
 
       # geo_id 92000000 is LinkedIn's worldwide scope. f_WT (the remote filter)
       # is deliberately absent: the guest endpoint accepts it but ignores it, so
