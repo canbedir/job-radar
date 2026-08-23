@@ -59,6 +59,10 @@ class Telegram:
         lines.append(f"📍 {location}" + ("  ·  🌍 remote" if job.remote else ""))
         if job.posted_at:
             lines.append(f"🗓 {job.posted_at}")
+        if job.years_required is not None:
+            # Shown, never filtered on: the posting's own wish, for the reader
+            # to weigh rather than the radar to decide.
+            lines.append(f"⏳ asks for {job.years_required}+ years")
         lines.append(f"⭐ score {job.score}  ·  <i>{html.escape(job.source)}</i>")
         if job.matched_terms:
             terms = html.escape(", ".join(job.matched_terms[:8]))

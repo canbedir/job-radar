@@ -221,7 +221,7 @@ def main(argv: list[str] | None = None) -> int:
             continue
         if not filters.title_allowed(job, experience["blocked_titles"]):
             rejected["seniority"] = rejected.get("seniority", 0) + 1
-        elif not filters.within_experience(job, int(experience["max_years"])):
+        elif not filters.within_experience(job, experience.get("max_years")):
             rejected["years"] = rejected.get("years", 0) + 1
         elif not filters.is_reachable(
             job,

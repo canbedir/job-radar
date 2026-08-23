@@ -12,11 +12,11 @@ profile:
     global: false
 
   experience:
-    # Drop jobs whose description demands more years than this. Titles are a
-    # poor guide -- a plain "Frontend Developer" was measured asking for four
-    # years while an "Associate" posting asked for two -- so the real filter
-    # reads the body of the posting. Jobs that state no requirement are kept.
-    max_years: 3
+    # Years demanded in a description are a wish, not a threshold: postings ask
+    # for five and hire someone with two. Filtering on it dropped jobs worth
+    # applying to, so it is off -- the figure still appears on the card, and
+    # the seniority call is made from the title below. Set a number to re-enable.
+    max_years: null
 
     # Titles that announce a level above yours. Matched as whole words, so
     # "senior" does not catch "Senior-friendly" phrasing elsewhere.

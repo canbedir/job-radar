@@ -13,12 +13,17 @@ from __future__ import annotations
 from .models import Job, normalize
 
 
-def within_experience(job: Job, max_years: int) -> bool:
-    """True when the stated year requirement is reachable.
+def within_experience(job: Job, max_years: int | None) -> bool:
+    """True when the stated year requirement is within reach.
 
-    Postings that name no figure pass: plenty of junior-friendly roles simply
-    never mention years.
+    Disabled when max_years is None, which is the default. A year count in a
+    description is an employer's wish rather than a threshold -- postings ask
+    for five and hire someone with two -- so filtering on it drops openings
+    that were worth an application. The figure is still shown on the card so
+    the decision stays with the reader.
     """
+    if max_years is None:
+        return True
     return job.years_required is None or job.years_required <= max_years
 
 
