@@ -71,6 +71,25 @@ on Telegram, send `/newbot`, and copy the token it replies with.
 The workflow is already scheduled, so there is nothing else to enable. The first
 24 hours are a silent warm-up while the backlog settles; alerts start after that.
 
+**Optional: run it on time**
+
+GitHub throttles scheduled workflows hard on public repositories. A `*/15`
+schedule was measured firing every 50 minutes on average, with gaps up to 73,
+which is how a job can be an hour old before it reaches you.
+
+`trigger/` is a Cloudflare Worker that asks GitHub for a run every 10 minutes
+through `workflow_dispatch`, which is not throttled that way. To deploy it:
+
+```bash
+cd trigger
+npx wrangler secret put GITHUB_TOKEN   # fine-grained PAT, Actions: read+write
+npx wrangler deploy
+```
+
+The token needs access to this repository only, with the **Actions** permission
+set to read and write. Visiting the deployed worker's URL triggers a run
+immediately, which is the quickest way to confirm it works.
+
 ## Local use
 
 ```bash

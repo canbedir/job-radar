@@ -1,0 +1,17 @@
+name = "job-radar-trigger"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+
+# Every 10 minutes. Not faster on purpose: each run spends ~24 requests on
+# LinkedIn, and the endpoint already answers 429 occasionally at the current
+# rate. Ten minutes is roughly five times the old effective frequency while
+# staying inside what the endpoint tolerates.
+[triggers]
+crons = ["*/10 * * * *"]
+
+[vars]
+REPO = "canbedir/job-radar"
+WORKFLOW = "radar.yml"
+BRANCH = "main"
+
+# GITHUB_TOKEN is set with `wrangler secret put GITHUB_TOKEN`, never here.

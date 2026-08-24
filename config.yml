@@ -159,8 +159,10 @@ run:
 sources:
   linkedin:
     enabled: true
-    # The endpoint serves 10 results per page and dries up past 40.
-    pages_per_query: 3
+    # The endpoint serves 10 results per page and dries up past 40. Two pages
+    # per query is enough now that runs are frequent: sortBy=DD puts the newest
+    # first, and running every 10 minutes means less ground to cover each time.
+    pages_per_query: 2
     # 24h lookback. Deduplication removes repeats, so the wide window simply
     # covers any scheduled run that GitHub delayed or skipped.
     time_filter: r86400
